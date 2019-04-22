@@ -1,0 +1,14 @@
+# Function Design Document
+
+| Item | Content |
+| ------ | ------ |
+| Function name | object_detection/build_tfrecords |
+| Function description | This function is in charge of generating corresponding .tfrecords files after train, valid and test sub-table are all generated. |
+| Function user | Data pipeline control function / model developer |
+| Prerequisite function | preprocess/create_cross_validation_split |
+| Successor function | train/detector.py |
+| Functional constraint |- Generate .tfrecords files using multi-threading <br> -Function tries to maintain a constant file size or image number for each .tfrecords file (recommended 100MB)|
+| Data constraint | -	One annotation per line in the sub-table <br> - The function will fail if none sub-table needed exist (throw error “none of train, valid and test is provided”). It can run successfully if at least one sub-table exists. But function will have warning to remind data missing (“warning: no train/test/valid sub-table is provided”). <br> -	Inside the sub-table, it must contain the columns ‘image_path’ and ‘pathology_label’, ‘xmin’, ‘xmax’, ‘ymin’, ‘ymax’ for detection task, else function will throw the error “key information for detection missing” with detail missing part. <br> - The image path must be valid. if it cannot open, function will throw the warning “invalid image path”. <br> - * Should check each image per line in the table, or else group.|
+| Input | A config json file with.The following is a sample: <br> { <br> "dataset": “./dateset_01”, <br> "directories": { <br>"train": "/train", // csv file path <br> "valid": "/valid", <br> "test": "/test" <br> }, <br> "input": { <br> "train": "train_set.csv", // csv file name <br> "valid": "valid_set.csv", <br> "test": "test_set.csv" <br> }, <br> "examples_per_shard": 50, // image number in a single tfrecords <br> "num_thread": 4, // multi-threading number <br> "classes": {"lucency": 1, "caries": 0} //class index <br> }|
+| Basic procedure | for folder in [test, train, valid]: <br> ....slice dataframe by labels;  <br> ....group different annotation by image_id/filename; <br> ....split shard into size of config_dict[‘examples_per_shard’], allocate to different threads to run; <br> ....for each thread in threads: <br> ........for image, label in image_sublist, label_sublist: <br> ............image is stored as bytes; <br> ............image/shape is stored as int64; <br> ............image/object/xmin is stored as float; <br> ............image/object/ymin is stored as float; <br> ............image/object/xmax is stored as float; <br> ............image/object/ymax is stored as float; <br> ............image/object/label is stored as float; <br> ............image/object/label_text is stored as bytes;|
+| Output | There is no return value for this function. But .tfrecords files will be generated in the output paths. The naming style for the output file is like “001.tfrecords” |
